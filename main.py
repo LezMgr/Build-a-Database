@@ -1,73 +1,79 @@
-db="data.db"
-store=[]
+import sys
+import os
 
+#The file where we keep our data
+db = "data.db"
+#List instead of dict
+data=[]
 
-def load_data():
-    try:
-        file=open(db,"r")
-        for line in file:
-            parts=line.strip().split(" ", 2)
+def load():
+    if not os.path.exists(db):
+        # Create the file if it doesn't exist yet
+        f=open(db,"w")
+        f.close()
+        return
+
+    with open(db,"r") as f:
+        for line in f:
+            line=line.strip()
+            if not line:
+                continue
+            
+            parts=line.split(" ",2)
             if len(parts)==3 and parts[0]=="SET":
-                set_in_memory(parts[1], parts[2])
-        file.close()
-    except FileNotFoundError:
-        pass
+                k,v=parts[1], parts[2]
+                update_list(k,v)
 
-
-def set_in_memory(key, value):
-    for pair in store:
-        if pair[0]==key:
-            pair[1]=value
-            return
-    store.append([key, value])
-
-
-def get_value(key):
-    for pair in store:
-        if pair[0]==key:
-            return pair[1]
-    return None
-
-
-def persist(key, value):
-    file = open(db,"a")
-    file.write("SET " + key + " " + value + "\n")
-    file.close()
-
+def update_list(k, v):
+    found=False
+    for item in data:
+        if item[0]==k:
+            item[1]=v
+            found=True
+            break
+    if not found:
+        data.append([k,v])
 
 def main():
-    load_data()
+    load()
+    # Read from stdin line by line
+    for cmd_line in sys.stdin:
+        cmd_line=cmd_line.strip()
+        if not cmd_line:
+            continue
+            
+        chunks=cmd_line.split(" ", 2)
+        action=chunks[0].upper()
 
-    while True:
-        try:
-            command=input().strip()
-        except EOFError:
+        if action=="SET" and len(chunks)==3:
+            key_name=chunks[1]
+            val_name=chunks[2]
+            
+            # 1. Update our memory list
+            update_list(key_name, val_name)
+            
+            # 2. Write to the end of the file (append mode)
+            with open(db, "a") as f:
+                f.write("SET " + key_name + " " + val_name + "\n")
+            
+            print("OK", flush=True)
+
+        elif action=="GET" and len(chunks)==2:
+            search_key=chunks[1]
+            result=""
+        
+            for item in data:
+                if item[0]==search_key:
+                    result=item[1]
+                    break
+            
+            print(result, flush=True)
+
+        elif action=="EXIT":
             break
-
-        parts=command.split(" ", 2)
-
-        if parts[0]=="SET" and len(parts)==3:
-            key=parts[1]
-            value=parts[2]
-
-            set_in_memory(key, value)
-            persist(key, value)
-
-            print("OK")
-
-        elif parts[0]=="GET" and len(parts)==2:
-            value=get_value(parts[1])
-
-            if value is not None:
-                print(value)
-            else:
-                print("NULL")
-
-        elif parts[0]=="EXIT":
-            break
-
+        
         else:
-            print("ERROR")
-main()
+            print("ERROR", flush=True)
 
-
+if __name__=="__main__":
+    main()
